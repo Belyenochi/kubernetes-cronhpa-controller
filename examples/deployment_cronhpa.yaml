@@ -24,8 +24,6 @@ spec:
 apiVersion: autoscaling.harmonycloud.com/v1beta1
 kind: CronHorizontalPodAutoscaler
 metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
   name: cronhpa-sample
 spec:
    scaleTargetRef:
