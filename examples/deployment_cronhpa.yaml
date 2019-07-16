@@ -21,7 +21,7 @@ spec:
         ports:
         - containerPort: 80
 ---
-apiVersion: autoscaling.alibabacloud.com/v1beta1
+apiVersion: autoscaling.harmonycloud.com/v1beta1
 kind: CronHorizontalPodAutoscaler
 metadata:
   labels:
