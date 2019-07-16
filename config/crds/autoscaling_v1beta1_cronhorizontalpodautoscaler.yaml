@@ -4,9 +4,9 @@ metadata:
   creationTimestamp: null
   labels:
     controller-tools.k8s.io: "1.0"
-  name: cronhorizontalpodautoscalers.autoscaling.alibabacloud.com
+  name: cronhorizontalpodautoscalers.autoscaling.harmonycloud.cn
 spec:
-  group: autoscaling.alibabacloud.com
+  group: autoscaling.harmonycloud.cn
   names:
     kind: CronHorizontalPodAutoscaler
     plural: cronhorizontalpodautoscalers
