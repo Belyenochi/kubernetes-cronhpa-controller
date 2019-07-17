@@ -34,9 +34,9 @@ type FakeCronHorizontalPodAutoscalers struct {
 	ns   string
 }
 
-var cronhorizontalpodautoscalersResource = schema.GroupVersionResource{Group: "autoscaling.alibabacloud.com", Version: "v1beta1", Resource: "cronhorizontalpodautoscalers"}
+var cronhorizontalpodautoscalersResource = schema.GroupVersionResource{Group: "autoscaling.harmonycloud.cn", Version: "v1beta1", Resource: "cronhorizontalpodautoscalers"}
 
-var cronhorizontalpodautoscalersKind = schema.GroupVersionKind{Group: "autoscaling.alibabacloud.com", Version: "v1beta1", Kind: "CronHorizontalPodAutoscaler"}
+var cronhorizontalpodautoscalersKind = schema.GroupVersionKind{Group: "autoscaling.harmonycloud.cn", Version: "v1beta1", Kind: "CronHorizontalPodAutoscaler"}
 
 // Get takes name of the cronHorizontalPodAutoscaler, and returns the corresponding cronHorizontalPodAutoscaler object, and an error if there is any.
 func (c *FakeCronHorizontalPodAutoscalers) Get(name string, options v1.GetOptions) (result *v1beta1.CronHorizontalPodAutoscaler, err error) {
