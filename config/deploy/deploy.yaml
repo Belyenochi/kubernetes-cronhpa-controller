@@ -21,6 +21,7 @@ metadata:
   labels:
     app: kubernetes-cronhpa-controller
 spec:
+  replicas: 3
   selector:
     matchLabels:
       app: kubernetes-cronhpa-controller
@@ -32,7 +33,7 @@ spec:
       containers:
       - command:
         - /root/kubernetes-cronhpa-controller
-        image: jasontomas/kubernetes-cronhpa-controller:v1.1
+        image: jasontomas/kubernetes-cronhpa-controller:v1.4
         imagePullPolicy: Always
         name: kubernetes-cronhpa-controller
         resources:
