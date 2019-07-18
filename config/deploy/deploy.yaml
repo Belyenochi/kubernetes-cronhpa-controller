@@ -33,8 +33,8 @@ spec:
       containers:
       - command:
         - /root/kubernetes-cronhpa-controller
-        image: jasontomas/kubernetes-cronhpa-controller:v1.4
-        imagePullPolicy: Always
+        image: jasontomas/kubernetes-cronhpa-controller:v1.5
+        imagePullPolicy: IfNotPresent
         name: kubernetes-cronhpa-controller
         resources:
           limits:
