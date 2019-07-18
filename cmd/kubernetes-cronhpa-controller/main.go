@@ -19,6 +19,7 @@ package main
 import (
 	"os"
 
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/apis"
 	"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/controller"
 	//"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/webhook"
