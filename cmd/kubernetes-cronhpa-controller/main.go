@@ -45,11 +45,7 @@ func main() {
 	// Create a new Cmd to provide shared dependencies and start components
 	log.Info("setting up manager")
 	
-	id, err := os.Hostname()
-	if err != nil {
-		os.Exit(1)
-	}
-	id = id + "_" + string(uuid.NewUUID())
+	id := "kubernetes-cronhpa-controller" + "-" + string(uuid.NewUUID())
 	mgr, err := manager.New(cfg, manager.Options{
 		LeaderElection: true,
 		LeaderElectionNamespace: "kube-system",
