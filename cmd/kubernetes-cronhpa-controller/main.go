@@ -19,6 +19,7 @@ package main
 import (
 	"os"
 
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/apis"
 	"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/controller"
 	//"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/webhook"
@@ -43,7 +44,13 @@ func main() {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	log.Info("setting up manager")
-	mgr, err := manager.New(cfg, manager.Options{})
+	
+	id := "kubernetes-cronhpa-controller" + "-" + string(uuid.NewUUID())
+	mgr, err := manager.New(cfg, manager.Options{
+		LeaderElection: true,
+		LeaderElectionNamespace: "kube-system",
+		LeaderElectionID: id,
+	})
 	if err != nil {
 		log.Error(err, "unable to set up overall controller manager")
 		os.Exit(1)
