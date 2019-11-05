@@ -8,6 +8,9 @@ import (
 	autoscalingapi "k8s.io/api/autoscaling/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	scaleclient "k8s.io/client-go/scale"
 )
 
@@ -75,10 +78,26 @@ func (ch *CronJobHPA) Ref() *TargetRef {
 }
 
 func (ch *CronJobHPA) Run() error {
+	// use only for zyzx
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	deployments, err := clientset.AppsV1().Deployments(ch.TargetRef.RefNamespace).Get(ch.TargetRef.RefName,
+		metav1.GetOptions{})
+	if err != nil {
+		panic(err)
+	}
+
 	targetGK := schema.GroupKind{
 		Group: ch.TargetRef.RefGroup,
 		Kind:  ch.TargetRef.RefKind,
 	}
+
 	mappings, err := ch.mapper.RESTMappings(targetGK)
 	if err != nil {
 		return fmt.Errorf("Failed to create create mapping,because of %s", err.Error())
@@ -99,11 +118,17 @@ func (ch *CronJobHPA) Run() error {
 	if found == false {
 		return fmt.Errorf("Failed to found source target %s", ch.TargetRef.RefName)
 	}
-	scale.Spec.Replicas = int32(ch.DesiredSize)
-	_, err = ch.scaler.Scales(ch.TargetRef.RefNamespace).Update(targetGR, scale)
-	if err != nil {
-		return fmt.Errorf("Failed to scale (namespace: %s;kind: %s;name: %s) to %d,because of %s", ch.TargetRef.RefNamespace, ch.TargetRef.RefKind, ch.TargetRef.RefName, ch.DesiredSize, err.Error())
+
+	rescale := !(deployments.Status.Replicas <= ch.DesiredSize)
+
+	if rescale {
+		scale.Spec.Replicas = int32(ch.DesiredSize)
+		_, err = ch.scaler.Scales(ch.TargetRef.RefNamespace).Update(targetGR, scale)
+		if err != nil {
+			return fmt.Errorf("Failed to scale (namespace: %s;kind: %s;name: %s) to %d,because of %s", ch.TargetRef.RefNamespace, ch.TargetRef.RefKind, ch.TargetRef.RefName, ch.DesiredSize, err.Error())
+		}
 	}
+
 	return nil
 }
 
@@ -118,7 +143,8 @@ func checkPlanValid(plan string) error {
 	return nil
 }
 
-func CronHPAJobFactory(ref *TargetRef, hpaRef *v1beta1.CronHorizontalPodAutoscaler, job v1beta1.Job, scaler scaleclient.ScalesGetter, mapper apimeta.RESTMapper) (CronJob, error) {
+func CronHPAJobFactory(ref *TargetRef, hpaRef *v1beta1.CronHorizontalPodAutoscaler, job v1beta1.Job,
+	scaler scaleclient.ScalesGetter, mapper apimeta.RESTMapper) (CronJob, error) {
 	if err := checkRefValid(ref); err != nil {
 		return nil, err
 	}
