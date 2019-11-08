@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/apis/autoscaling/v1beta1"
 	log "github.com/Sirupsen/logrus"
+	"github.com/ringtail/go-cron"
 	"github.com/satori/go.uuid"
 	autoscalingapi "k8s.io/api/autoscaling/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -13,12 +14,14 @@ import (
 	"k8s.io/client-go/rest"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	scaleclient "k8s.io/client-go/scale"
+	"strings"
 	"time"
 )
 
 const (
 	updateRetryInterval = 5 * time.Second
 	maxRetryTimeout     = 1 * time.Minute
+	dateFormat          = "11-15-1990"
 )
 
 type CronJob interface {
@@ -45,15 +48,16 @@ func (tr *TargetRef) toString() string {
 }
 
 type CronJobHPA struct {
-	TargetRef   *TargetRef
-	HPARef      *v1beta1.CronHorizontalPodAutoscaler
-	id          string
-	name        string
-	DesiredSize int32
-	Plan        string
-
-	scaler scaleclient.ScalesGetter
-	mapper apimeta.RESTMapper
+	TargetRef    *TargetRef
+	HPARef       *v1beta1.CronHorizontalPodAutoscaler
+	id           string
+	name         string
+	DesiredSize  int32
+	Plan         string
+	RunOnce      bool
+	scaler       scaleclient.ScalesGetter
+	mapper       apimeta.RESTMapper
+	excludeDates []string
 }
 
 func (ch *CronJobHPA) SetID(id string) {
@@ -104,10 +108,13 @@ func (ch *CronJobHPA) Run() (msg string, err error) {
 		Group: ch.TargetRef.RefGroup,
 		Kind:  ch.TargetRef.RefKind,
 	}
-
 	mappings, err := ch.mapper.RESTMappings(targetGK)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create create mapping,because of %s", err.Error())
+	}
+
+	if skip, msg := IsTodayOff(ch.excludeDates); skip {
+		return msg, nil
 	}
 
 	var scale *autoscalingapi.Scale
@@ -138,22 +145,17 @@ func (ch *CronJobHPA) Run() (msg string, err error) {
 			return "", fmt.Errorf("Failed to found source target %s", ch.TargetRef.RefName)
 		}
 
-		rescale := !(deployments.Status.Replicas <= ch.DesiredSize)
-
-		if rescale {
-			msg = fmt.Sprintf("current replicas:%d, desired replicas:%d", scale.Spec.Replicas, ch.DesiredSize)
-			scale.Spec.Replicas = int32(ch.DesiredSize)
-			_, err = ch.scaler.Scales(ch.TargetRef.RefNamespace).Update(targetGR, scale)
-			if err != nil {
-				log.Warningf("Failed to scale (namespace: %s;kind: %s;name: %s) to %d,because of %s", ch.TargetRef.RefNamespace, ch.TargetRef.RefKind, ch.TargetRef.RefName, ch.DesiredSize, err.Error())
-			} else {
-				break
-			}
-
-			time.Sleep(updateRetryInterval)
-			times = times + 1
+		msg = fmt.Sprintf("current replicas:%d, desired replicas:%d", scale.Spec.Replicas, ch.DesiredSize)
+		scale.Spec.Replicas = int32(ch.DesiredSize)
+		_, err = ch.scaler.Scales(ch.TargetRef.RefNamespace).Update(targetGR, scale)
+		if err != nil {
+			log.Warningf("Failed to scale (namespace: %s;kind: %s;name: %s) to %d,because of %s", ch.TargetRef.RefNamespace, ch.TargetRef.RefKind, ch.TargetRef.RefName, ch.DesiredSize, err.Error())
+		} else {
+			break
 		}
 
+		time.Sleep(updateRetryInterval)
+		times = times + 1
 	}
 
 	return msg, nil
@@ -170,8 +172,18 @@ func checkPlanValid(plan string) error {
 	return nil
 }
 
-func CronHPAJobFactory(ref *TargetRef, hpaRef *v1beta1.CronHorizontalPodAutoscaler, job v1beta1.Job,
-	scaler scaleclient.ScalesGetter, mapper apimeta.RESTMapper) (CronJob, error) {
+func CronHPAJobFactory(instance *v1beta1.CronHorizontalPodAutoscaler, job v1beta1.Job, scaler scaleclient.ScalesGetter, mapper apimeta.RESTMapper) (CronJob, error) {
+	arr := strings.Split(instance.Spec.ScaleTargetRef.ApiVersion, "/")
+	group := arr[0]
+	version := arr[1]
+	ref := &TargetRef{
+		RefName:      instance.Spec.ScaleTargetRef.Name,
+		RefKind:      instance.Spec.ScaleTargetRef.Kind,
+		RefNamespace: instance.Namespace,
+		RefGroup:     group,
+		RefVersion:   version,
+	}
+
 	if err := checkRefValid(ref); err != nil {
 		return nil, err
 	}
@@ -179,13 +191,35 @@ func CronHPAJobFactory(ref *TargetRef, hpaRef *v1beta1.CronHorizontalPodAutoscal
 		return nil, err
 	}
 	return &CronJobHPA{
-		id:          uuid.Must(uuid.NewV4(), nil).String(),
-		TargetRef:   ref,
-		HPARef:      hpaRef,
-		name:        job.Name,
-		Plan:        job.Schedule,
-		DesiredSize: job.TargetSize,
-		scaler:      scaler,
-		mapper:      mapper,
+		id:           uuid.Must(uuid.NewV4(), nil).String(),
+		TargetRef:    ref,
+		HPARef:       instance,
+		name:         job.Name,
+		Plan:         job.Schedule,
+		DesiredSize:  job.TargetSize,
+		RunOnce:      job.RunOnce,
+		scaler:       scaler,
+		mapper:       mapper,
+		excludeDates: instance.Spec.ExcludeDates,
 	}, nil
+}
+
+func IsTodayOff(excludeDates []string) (bool, string) {
+
+	if excludeDates == nil {
+		return false, ""
+	}
+
+	now := time.Now()
+	for _, date := range excludeDates {
+		schedule, err := cron.Parse(date)
+		if err != nil {
+			log.Warningf("Failed to parse schedule %s,and skip this date,because of %v", date, err)
+			continue
+		}
+		if nextTime := schedule.Next(now); nextTime.Format(dateFormat) == now.Format(dateFormat) {
+			return true, fmt.Sprintf("skip scaling activity,because of excludeDate (%s).", date)
+		}
+	}
+	return false, ""
 }
