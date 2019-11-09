@@ -145,17 +145,21 @@ func (ch *CronJobHPA) Run() (msg string, err error) {
 			return "", fmt.Errorf("Failed to found source target %s", ch.TargetRef.RefName)
 		}
 
-		msg = fmt.Sprintf("current replicas:%d, desired replicas:%d", scale.Spec.Replicas, ch.DesiredSize)
-		scale.Spec.Replicas = int32(ch.DesiredSize)
-		_, err = ch.scaler.Scales(ch.TargetRef.RefNamespace).Update(targetGR, scale)
-		if err != nil {
-			log.Warningf("Failed to scale (namespace: %s;kind: %s;name: %s) to %d,because of %s", ch.TargetRef.RefNamespace, ch.TargetRef.RefKind, ch.TargetRef.RefName, ch.DesiredSize, err.Error())
-		} else {
-			break
-		}
+		rescale := !(deployments.Status.Replicas <= ch.DesiredSize)
 
-		time.Sleep(updateRetryInterval)
-		times = times + 1
+		if rescale {
+			msg = fmt.Sprintf("current replicas:%d, desired replicas:%d", scale.Spec.Replicas, ch.DesiredSize)
+			scale.Spec.Replicas = int32(ch.DesiredSize)
+			_, err = ch.scaler.Scales(ch.TargetRef.RefNamespace).Update(targetGR, scale)
+			if err != nil {
+				log.Warningf("Failed to scale (namespace: %s;kind: %s;name: %s) to %d,because of %s", ch.TargetRef.RefNamespace, ch.TargetRef.RefKind, ch.TargetRef.RefName, ch.DesiredSize, err.Error())
+			} else {
+				break
+			}
+
+			time.Sleep(updateRetryInterval)
+			times = times + 1
+		}
 	}
 
 	return msg, nil

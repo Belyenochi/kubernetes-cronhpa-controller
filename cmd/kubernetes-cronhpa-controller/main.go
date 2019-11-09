@@ -17,11 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"os"
-
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/apis"
 	"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/controller"
+	"os"
 	//"github.com/AliyunContainerService/kubernetes-cronhpa-controller/pkg/webhook"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -45,11 +43,10 @@ func main() {
 	// Create a new Cmd to provide shared dependencies and start components
 	log.Info("setting up manager")
 	
-	id := "kubernetes-cronhpa-controller" + "-" + string(uuid.NewUUID())
 	mgr, err := manager.New(cfg, manager.Options{
 		LeaderElection: true,
+		LeaderElectionID: "cron-hpa-election",
 		LeaderElectionNamespace: "kube-system",
-		LeaderElectionID: id,
 	})
 	if err != nil {
 		log.Error(err, "unable to set up overall controller manager")
