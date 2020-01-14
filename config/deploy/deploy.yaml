@@ -1,18 +1,3 @@
-# webhook admission controller
----
-#apiVersion: v1
-#kind: Service
-#metadata:
-#  name: kubernetes-cronhpa-service
-#  namespace: kube-system
-#  labels:
-#    app: kubernetes-cronhpa-controller
-#spec:
-#  selector:
-#    app: kubernetes-cronhpa-controller
-#  ports:
-#  - port: 443
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
